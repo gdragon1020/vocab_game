@@ -788,6 +788,18 @@ function toast(msg, type='success') {
 
 document.getElementById('edit-modal').addEventListener('click',function(e){if(e.target===this)closeModal();});
 
+// Ctrl+Enter 快速新增
+document.addEventListener('keydown', function(e) {
+  if (e.ctrlKey && e.key === 'Enter') {
+    const addView = document.getElementById('view-add');
+    if (addView.classList.contains('active')) {
+      addWord().then(() => {
+        document.getElementById('f-word').focus();
+      });
+    }
+  }
+});
+
 // ── INIT ─────────────────────────────────────────────
 // 需要在 Supabase 加 translation 欄位
 fetchWords();
