@@ -526,8 +526,7 @@ async function addWord() {
     allWords.unshift(result[0]);
     clearForm();
     renderList(); updateStats();
-    toast('✓ 單字已新增');
-    showView('list');
+    toast('✓ 單字已新增，可繼續新增');
   } catch(e) { toast('新增失敗：'+e.message,'error'); }
 }
 
