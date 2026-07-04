@@ -54,6 +54,11 @@
   .btn-sm { padding: 6px 12px; font-size: 12px; }
   .form-actions { display: flex; gap: 10px; margin-top: 4px; }
 
+  /* POS TAGS */
+  .pos-tag-group { display: flex; flex-wrap: wrap; gap: 8px; }
+  .pos-tag { padding: 5px 12px; border-radius: 20px; font-size: 12px; cursor: pointer; border: 1px solid var(--border); background: none; color: var(--text-dim); font-family: inherit; transition: all 0.2s; user-select: none; }
+  .pos-tag.selected { background: var(--las); border-color: var(--la); color: var(--la); }
+
   /* USAGE ROWS */
   .usage-section { margin-bottom: 14px; }
   .usage-section > label { font-size: 12px; color: var(--text-dim); font-weight: 500; letter-spacing: 0.06em; text-transform: uppercase; display: block; margin-bottom: 8px; }
@@ -215,14 +220,9 @@
         <label>中文翻譯 *</label>
         <input type="text" id="f-zh" placeholder="e.g. 大量；眾多">
       </div>
-      <div class="form-group">
-        <label>詞性</label>
-        <select id="f-pos">
-          <option value="">— 選擇詞性 —</option>
-          <option>n. 名詞</option><option>v. 動詞</option><option>adj. 形容詞</option>
-          <option>adv. 副詞</option><option>prep. 介系詞</option><option>conj. 連接詞</option>
-          <option>phr. 片語</option><option>exp. 慣用語</option>
-        </select>
+      <div class="form-group full">
+        <label>詞性（可多選）</label>
+        <div class="pos-tag-group" id="f-pos-tags"></div>
       </div>
       <div class="form-group">
         <label>同義詞</label>
@@ -302,14 +302,9 @@
         <label>中文翻譯 *</label>
         <input type="text" id="edit-zh">
       </div>
-      <div class="form-group">
-        <label>詞性</label>
-        <select id="edit-pos">
-          <option value="">— 選擇詞性 —</option>
-          <option>n. 名詞</option><option>v. 動詞</option><option>adj. 形容詞</option>
-          <option>adv. 副詞</option><option>prep. 介系詞</option><option>conj. 連接詞</option>
-          <option>phr. 片語</option><option>exp. 慣用語</option>
-        </select>
+      <div class="form-group full">
+        <label>詞性（可多選）</label>
+        <div class="pos-tag-group" id="edit-pos-tags"></div>
       </div>
       <div class="form-group">
         <label>同義詞</label>
@@ -500,10 +495,37 @@ function parseUsages(raw) {
   return [];
 }
 
+// ── POS TAGS ─────────────────────────────────────────
+const POS_LIST = ['n. 名詞','v. 動詞','adj. 形容詞','adv. 副詞','prep. 介系詞','conj. 連接詞','phr. 片語','exp. 慣用語'];
+
+function renderPosTags(containerId, selected=[]) {
+  const container = document.getElementById(containerId);
+  container.innerHTML = POS_LIST.map(p =>
+    `<button type="button" class="pos-tag${selected.includes(p)?' selected':''}" onclick="togglePosTag(this,'${containerId}')">${p}</button>`
+  ).join('');
+}
+
+function togglePosTag(btn, containerId) {
+  btn.classList.toggle('selected');
+}
+
+function getSelectedPos(containerId) {
+  const tags = document.querySelectorAll(`#${containerId} .pos-tag.selected`);
+  return [...tags].map(t=>t.textContent).join(' / ') || null;
+}
+
+function setSelectedPos(containerId, value) {
+  const selected = value ? value.split(' / ') : [];
+  document.querySelectorAll(`#${containerId} .pos-tag`).forEach(t => {
+    t.classList.toggle('selected', selected.includes(t.textContent));
+  });
+}
+
 // ── ADD ──────────────────────────────────────────────
 function initAddForm() {
   document.getElementById('add-usage-rows').innerHTML = '';
   addUsageRow('add-usage-rows');
+  renderPosTags('f-pos-tags');
 }
 
 async function addWord() {
@@ -516,7 +538,7 @@ async function addWord() {
     const result = await api('POST', 'words', {
       language: currentLang, word,
       translation: zh,
-      part_of_speech: document.getElementById('f-pos').value || null,
+      part_of_speech: getSelectedPos('f-pos-tags'),
       usage: usages.length ? JSON.stringify(usages) : null,
       synonyms: document.getElementById('f-syn').value.trim() || null,
       antonyms: document.getElementById('f-ant').value.trim() || null,
@@ -531,9 +553,10 @@ async function addWord() {
 }
 
 function clearForm() {
-  ['f-word','f-zh','f-pos','f-syn','f-ant','f-notes'].forEach(id => {
-    const el = document.getElementById(id); el.value='';
+  ['f-word','f-zh','f-syn','f-ant','f-notes'].forEach(id => {
+    document.getElementById(id).value='';
   });
+  renderPosTags('f-pos-tags');
   document.getElementById('add-usage-rows').innerHTML='';
   addUsageRow('add-usage-rows');
 }
@@ -545,10 +568,11 @@ function openEdit(id) {
   document.getElementById('edit-id').value = id;
   document.getElementById('edit-word').value = w.word;
   document.getElementById('edit-zh').value = w.translation || '';
-  document.getElementById('edit-pos').value = w.part_of_speech || '';
   document.getElementById('edit-syn').value = w.synonyms || '';
   document.getElementById('edit-ant').value = w.antonyms || '';
   document.getElementById('edit-notes').value = w.notes || '';
+  renderPosTags('edit-pos-tags');
+  setSelectedPos('edit-pos-tags', w.part_of_speech || '');
   const container = document.getElementById('edit-usage-rows');
   container.innerHTML = '';
   const usages = parseUsages(w.usage);
@@ -564,10 +588,11 @@ async function saveEdit() {
   if (!word) { toast('單字不能為空','error'); return; }
   if (!zh) { toast('中文翻譯不能為空','error'); return; }
   const usages = getUsageRows('edit-usage-rows');
+  const pos = getSelectedPos('edit-pos-tags');
   try {
     await api('PATCH', `words?id=eq.${id}`, {
       word, translation: zh,
-      part_of_speech: document.getElementById('edit-pos').value || null,
+      part_of_speech: pos,
       synonyms: document.getElementById('edit-syn').value.trim() || null,
       antonyms: document.getElementById('edit-ant').value.trim() || null,
       usage: usages.length ? JSON.stringify(usages) : null,
@@ -575,7 +600,7 @@ async function saveEdit() {
     });
     const idx = allWords.findIndex(x=>x.id===id);
     if (idx!==-1) allWords[idx] = { ...allWords[idx], word, translation: zh,
-      part_of_speech: document.getElementById('edit-pos').value||null,
+      part_of_speech: pos,
       synonyms: document.getElementById('edit-syn').value.trim()||null,
       antonyms: document.getElementById('edit-ant').value.trim()||null,
       usage: usages.length?JSON.stringify(usages):null,
@@ -665,9 +690,10 @@ function renderQuestion() {
   const typeLabel = item.type==='usage' ? '用法測驗' : '單字測驗';
 
   if (isMC) {
-    // 選擇題：從其他 item 抽干擾選項
-    const others = quizQueue.filter((_,i)=>i!==quizIndex);
-    const distractors = shuffle(others).slice(0,3).map(o=>o.answer);
+    // 選擇題：干擾選項必須跟正確答案同方向（都是英文或都是中文）
+    const others = quizQueue.filter((_,i)=>i!==quizIndex && quizQueue[i].direction===item.direction);
+    const pool = others.length >= 3 ? others : quizQueue.filter((_,i)=>i!==quizIndex);
+    const distractors = shuffle(pool).slice(0,3).map(o=>o.answer);
     const choices = shuffle([item.answer, ...distractors]);
     card.innerHTML = `
       <div class="quiz-type-label">${typeLabel}・選擇題・${dirLabel}</div>
@@ -683,12 +709,10 @@ function renderQuestion() {
       <div class="quiz-hint">輸入你的答案</div>
       <div class="fill-input-wrap">
         <input type="text" id="fill-ans" placeholder="輸入答案…" onkeydown="if(event.key==='Enter')checkFill()">
-        <button class="btn btn-primary" onclick="checkFill()">確認</button>
+        <button class="btn btn-primary" id="fill-confirm-btn" onclick="checkFill()">確認</button>
       </div>
       <div class="fill-result" id="fill-result"></div>`;
-    nav.innerHTML = `
-      <button class="btn btn-secondary" onclick="markFill(false)">✗ 答錯了</button>
-      <button class="btn btn-primary" onclick="markFill(true)">✓ 答對了</button>`;
+    nav.innerHTML = `<button class="btn btn-primary" onclick="nextQuestion()" id="next-btn" disabled>下一題 →</button>`;
     setTimeout(()=>document.getElementById('fill-ans')?.focus(),100);
   }
 }
@@ -708,11 +732,47 @@ function answerMC(btn, choice, correct) {
   recordResult(isCorrect);
 }
 
+function normalize(str) {
+  return (str||'').toLowerCase().replace(/[\s\u3000.,，。、！!？?；;：:「」『』（）()【】\[\]…—\-\/\\]/g,'');
+}
+
 function checkFill() {
+  if (answered) return;
   const item = quizQueue[quizIndex];
+  const userAns = document.getElementById('fill-ans').value.trim();
+  const isCorrect = normalize(userAns) === normalize(item.answer);
   const result = document.getElementById('fill-result');
-  result.className = 'fill-result show';
-  result.innerHTML = `<strong>參考答案：</strong>${esc(item.answer)}`;
+  const confirmBtn = document.getElementById('fill-confirm-btn');
+  if (confirmBtn) confirmBtn.disabled = true;
+  document.getElementById('fill-ans').disabled = true;
+
+  result.className = 'fill-result show ' + (isCorrect ? 'correct' : 'wrong');
+  result.innerHTML = isCorrect
+    ? `✓ 正確！　<span style="opacity:0.8">答案：${esc(item.answer)}</span>`
+    : `✗ 參考答案：<strong>${esc(item.answer)}</strong>`;
+
+  if (isCorrect) {
+    answered = true;
+    recordResult(true);
+    document.getElementById('next-btn').disabled = false;
+  } else {
+    // 顯示「其實我答對了」覆蓋按鈕
+    document.getElementById('quiz-nav').innerHTML = `
+      <button class="btn btn-secondary" onclick="overrideFill(false)">✗ 確實答錯</button>
+      <button class="btn btn-primary" onclick="overrideFill(true)">✓ 其實我答對了</button>`;
+  }
+}
+
+function overrideFill(correct) {
+  if (answered) return;
+  answered = true;
+  recordResult(correct);
+  if (!correct) {
+    const result = document.getElementById('fill-result');
+    result.className = 'fill-result show wrong';
+  }
+  document.getElementById('quiz-nav').innerHTML =
+    `<button class="btn btn-primary" onclick="nextQuestion()">下一題 →</button>`;
 }
 
 function markFill(correct) {
